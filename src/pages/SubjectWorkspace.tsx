@@ -55,6 +55,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfWidth, setPdfWidth] = useState(800); 
+  const [pdfDimensions, setPdfDimensions] = useState({ width: 0, height: 0 }); // FIX: Exact dimensions for canvas
   
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [notes, setNotes] = useState<StickyNoteData[]>([]);
@@ -96,7 +97,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   const canvasRef = useRef<ReactSketchCanvasRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-open sidebar if user closes the active document
   useEffect(() => {
     if (!activeMaterial) setIsSidebarOpen(true);
   }, [activeMaterial]);
@@ -108,7 +108,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     }
   }, [activeMaterial?.id, subject]);
 
-  // Load specific page annotations when switching pages
   useEffect(() => {
     if (canvasRef.current && activeMaterial?.annotations) {
       try {
@@ -165,7 +164,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     const handleResize = () => { if (containerRef.current) setPdfWidth(containerRef.current.clientWidth - 40); };
     window.addEventListener('resize', handleResize); handleResize();
     return () => window.removeEventListener('resize', handleResize);
-  }, [isSidebarOpen]); // Recalculate width if sidebar is toggled
+  }, [isSidebarOpen]);
 
   const saveKey = (key: string) => { const cleanKey = key.trim(); setApiKey(cleanKey); localStorage.setItem('gemini-key', cleanKey); setIsSettingsOpen(false); };
   
@@ -396,7 +395,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   return (
     <div className="flex h-full w-full bg-black/20 relative overflow-hidden" onPointerMove={handleDragMove} onPointerUp={handleDragEnd}>
       
-      {/* SIDEBAR WITH DYNAMIC WIDTH */}
       <div className={`border-white/10 flex-col bg-panel/30 shrink-0 transition-all duration-300 z-20 ${isSidebarOpen ? 'flex w-72 border-r' : 'hidden w-0'}`}>
         <div className="p-4 border-b border-white/10 flex items-center justify-between">
           <button onClick={onBack} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white"><ArrowLeft size={16} /> Back</button>
@@ -540,7 +538,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
           <>
             <div className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-panel/80 backdrop-blur-md z-30 shrink-0">
               <div className="flex items-center gap-2 overflow-hidden mr-4">
-                {/* SIDEBAR TOGGLE BUTTON */}
                 <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1.5 bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg shrink-0 mr-1" title="Toggle Sidebar">
                   {isSidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
                 </button>
@@ -610,7 +607,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
             <div className="flex-1 overflow-auto p-8 flex justify-center relative pb-24" onClick={() => setIsNotesMenuOpen(false)}>
               {activeMaterial ? (
                 <div className="relative w-full max-w-5xl flex justify-center" ref={containerRef} onClick={(e) => e.stopPropagation()}>
-                  <div className="relative">
+                  <div className="relative" style={{ width: pdfDimensions.width || 'auto', height: pdfDimensions.height || 'auto' }}>
                     {activeMaterial.type === 'image' && <img src={activeMaterial.url} className="max-w-full h-auto rounded object-contain" />}
                     {activeMaterial.type === 'pdf' && (
                       <div className="bg-white rounded shadow-2xl overflow-hidden relative">
@@ -620,7 +617,20 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                           onLoadError={(error) => console.error("PDF Load Error:", error)}
                           className="flex flex-col items-center"
                         >
-                          <Page pageNumber={currentPage} width={pdfWidth} renderTextLayer={false} renderAnnotationLayer={false} />
+                          <Page 
+                            pageNumber={currentPage} 
+                            width={pdfWidth} 
+                            renderTextLayer={false} 
+                            renderAnnotationLayer={false} 
+                            onLoadSuccess={(page) => {
+                              const viewport = page.getViewport({ scale: 1 });
+                              const scale = pdfWidth / viewport.width;
+                              setPdfDimensions({
+                                width: pdfWidth,
+                                height: viewport.height * scale
+                              });
+                            }}
+                          />
                         </Document>
                       </div>
                     )}
@@ -633,14 +643,15 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                     {activeMaterial.type === 'url' && <iframe src={activeMaterial.url} className="w-[800px] h-[600px] rounded border-none bg-white shadow-2xl" title="Web" />}
 
                     {(activeMaterial.annotations || isDrawing) && (
-                      <div className={`absolute inset-0 z-20 ${isDrawing ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+                      <div className={`absolute top-0 left-0 z-20 ${isDrawing ? 'pointer-events-auto' : 'pointer-events-none'}`} 
+                           style={{ width: pdfDimensions.width || '100%', height: pdfDimensions.height || '100%' }}>
                         <ReactSketchCanvas 
                           ref={canvasRef} 
                           strokeWidth={drawMode === 'highlighter' ? 15 : 4} 
                           strokeColor={drawMode === 'highlighter' ? 'rgba(255, 230, 0, 0.4)' : drawColor} 
                           eraserWidth={eraserSize} 
                           canvasColor="transparent" 
-                          style={{ border: 'none', opacity: isDrawing ? 1 : 0.8 }} 
+                          style={{ border: 'none', opacity: isDrawing ? 1 : 0.8, width: '100%', height: '100%' }} 
                           allowOnlyPointerType="all" 
                           withTimestamp={true} 
                         />
