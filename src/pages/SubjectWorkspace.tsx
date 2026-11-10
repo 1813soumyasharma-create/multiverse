@@ -628,7 +628,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
 
                     {isDrawing && (
                       <div className="absolute inset-0 z-20 pointer-events-auto">
-                        <ReactSketchCanvas ref={canvasRef} strokeWidth={drawMode === 'highlighter' ? 15 : 4} strokeColor={drawMode === 'highlighter' ? 'rgba(255, 230, 0, 0.4)' : drawColor} eraserWidth={eraserSize} canvasColor="transparent" style={{ border: 'none' }} allowOnlyPointerType="all" withTimestamp={true} eraseMode={drawMode === 'eraser'} />
+                        <ReactSketchCanvas ref={canvasRef} strokeWidth={drawMode === 'highlighter' ? 15 : 4} strokeColor={drawMode === 'highlighter' ? 'rgba(255, 230, 0, 0.4)' : drawColor} eraserWidth={eraserSize} canvasColor="transparent" style={{ border: 'none' }} allowOnlyPointerType="all" withTimestamp={true}  />
                       </div>
                     )}
                     {!isDrawing && activeMaterial.annotations && <img src={activeMaterial.annotations} className="absolute inset-0 pointer-events-none w-full h-full object-contain z-10" />}
@@ -782,3 +782,4 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     </div>
   );
 }
+
