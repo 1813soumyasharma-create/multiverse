@@ -101,22 +101,36 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     }
   }, [activeMaterial?.id, subject]);
 
+  // Load specific page annotations when switching pages
   useEffect(() => {
     if (canvasRef.current && activeMaterial?.annotations) {
       try {
-        if (activeMaterial.annotations.startsWith('[')) {
-          const paths = JSON.parse(activeMaterial.annotations);
-          canvasRef.current.loadPaths(paths);
+        const parsed = JSON.parse(activeMaterial.annotations);
+        
+        // Handle legacy array format by moving it to page 1
+        if (Array.isArray(parsed)) {
+           if (currentPage === 1) canvasRef.current.loadPaths(parsed);
+           else canvasRef.current.clearCanvas();
+        } 
+        // Handle new object format { "1": [...], "2": [...] }
+        else if (typeof parsed === 'object' && parsed !== null) {
+           const pagePaths = parsed[currentPage.toString()];
+           if (pagePaths) {
+             canvasRef.current.loadPaths(pagePaths);
+           } else {
+             canvasRef.current.clearCanvas();
+           }
         } else {
-          canvasRef.current.clearCanvas();
+           canvasRef.current.clearCanvas();
         }
       } catch (e) {
-        console.error("Failed to load paths", e);
+        console.error("Failed to parse annotations", e);
+        canvasRef.current.clearCanvas();
       }
     } else if (canvasRef.current) {
       canvasRef.current.clearCanvas();
     }
-  }, [activeMaterial, isDrawing]);
+  }, [activeMaterial, currentPage, isDrawing]);
 
   useEffect(() => {
     if (!user || !subject) return;
@@ -199,11 +213,28 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     e.stopPropagation(); setEditingMaterialId(mat.id); setUploadTitle(mat.title); setUploadUnit(mat.unit); setUploadError(''); setIsUploadOpen(true);
   };
   
+  // Save annotations mapped by page
   const saveAnnotations = async () => {
     if (!canvasRef.current || !user || !subject || !activeMaterial) return;
     try {
       const paths = await canvasRef.current.exportPaths();
-      const annotationsString = JSON.stringify(paths);
+      let existingAnnotations = {};
+      
+      if (activeMaterial.annotations) {
+        try {
+          const parsed = JSON.parse(activeMaterial.annotations);
+          if (!Array.isArray(parsed) && typeof parsed === 'object') {
+             existingAnnotations = parsed;
+          } else if (Array.isArray(parsed)) {
+             existingAnnotations = { "1": parsed }; // Migrate legacy array
+          }
+        } catch (e) {}
+      }
+
+      // Save current page paths into the object
+      existingAnnotations[currentPage.toString()] = paths;
+      const annotationsString = JSON.stringify(existingAnnotations);
+
       await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { annotations: annotationsString });
       setActiveMaterial({ ...activeMaterial, annotations: annotationsString });
       setIsDrawing(false);
@@ -214,10 +245,10 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
 
   const clearAnnotations = async () => {
     if (!user || !subject || !activeMaterial) return;
-    if (!confirm("Are you sure you want to erase ALL drawings on this document?")) return;
+    if (!confirm("Are you sure you want to erase ALL drawings on ALL pages of this document?")) return;
     try {
-      await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { annotations: "" });
-      setActiveMaterial({ ...activeMaterial, annotations: "" });
+      await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { annotations: "{}" });
+      setActiveMaterial({ ...activeMaterial, annotations: "{}" });
       if (canvasRef.current) canvasRef.current.clearCanvas();
     } catch (err) { alert("Failed to clear."); }
   };
@@ -508,7 +539,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                 {activeMaterial && <button onClick={() => setActiveMaterial(null)} className="p-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg shrink-0"><X size={18} /></button>}
                 <div className="text-sm font-medium text-white truncate max-w-[150px]">{activeMaterial ? activeMaterial.title : 'No document open'}</div>
                 
-                {/* PAGINATION MOVED TO TOP BAR */}
+                {/* PAGINATION IN TOP BAR */}
                 {activeMaterial?.type === 'pdf' && (
                   <div className="flex items-center gap-1 bg-black/40 rounded-lg px-2 py-1 ml-2 border border-white/10 shrink-0">
                     <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} className="p-1 disabled:opacity-30 hover:bg-white/10 rounded text-white"><ChevronLeft size={16}/></button>
