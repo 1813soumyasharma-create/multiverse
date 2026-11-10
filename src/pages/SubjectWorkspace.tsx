@@ -536,14 +536,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                     {activeMaterial.type === 'image' && <img src={activeMaterial.url} className="max-w-full h-auto rounded object-contain" />}
                     {activeMaterial.type === 'pdf' && (
                       <div className="bg-white rounded shadow-2xl overflow-hidden relative">
-                        {!numPages && (
-                           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-sm p-4 text-center">
-                              <p className="text-white mb-4">Loading PDF... If it doesn't load, your browser may be blocking the worker.</p>
-                              <a href={activeMaterial.url} target="_blank" rel="noreferrer" className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2">
-                                 <ExternalLink size={16}/> Open PDF in New Tab
-                              </a>
-                           </div>
-                        )}
+                        
                         <Document 
                           file={activeMaterial.url} 
                           onLoadSuccess={({ numPages }) => setNumPages(numPages)} 
@@ -730,3 +723,5 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     </div>
   );
 }
+
+
