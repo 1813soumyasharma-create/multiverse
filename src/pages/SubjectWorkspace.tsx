@@ -14,14 +14,13 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// Using cdnjs which is reliable on Vercel
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+// Using jsDelivr - the most reliable CDN that won't be blocked
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface StickyNoteData { id: string; x: number; y: number; text: string; page: number; }
 interface Material {
   id: string; title: string; type: 'pdf' | 'image' | 'video' | 'url' | 'ppt'; url: string; unit: string;
-  annotations?: string; // Now stores JSON array of paths
-  isBookmarked?: boolean; stickyNotes?: StickyNoteData[]; textContent?: string;
+  annotations?: string; isBookmarked?: boolean; stickyNotes?: StickyNoteData[]; textContent?: string;
 }
 interface PYQ {
   id: string; title: string; year: string; unit: string; marks: number; fileUrl?: string; fileType?: string; textContent?: string;
@@ -52,7 +51,8 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   const [drawMode, setDrawMode] = useState<'pen' | 'highlighter' | 'eraser'>('pen');
   const [eraserSize, setEraserSize] = useState(20);
   
-  const [numPages, setNumPages] = useState<number | null>(null);
+  // Default to 0 to prevent undefined errors
+  const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfWidth, setPdfWidth] = useState(800); 
   
@@ -97,7 +97,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setCurrentPage(1); setNumPages(null); setActiveNoteId(null);
+    setCurrentPage(1); setNumPages(0); setActiveNoteId(null);
     if (subject) {
       setEditTitle(subject.title); setEditRole(subject.role); setEditTheme(subject.theme); setEditExamDate(subject.examDate || '');
     }
@@ -111,7 +111,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
           const paths = JSON.parse(activeMaterial.annotations);
           canvasRef.current.loadPaths(paths);
         } else {
-          // Legacy PNG found, can't load into vector canvas
           canvasRef.current.clearCanvas();
         }
       } catch (e) {
@@ -628,7 +627,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
               )}
             </div>
 
-            {activeMaterial?.type === 'pdf' && numPages && (
+            {activeMaterial?.type === 'pdf' && numPages > 0 && (
               <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-[#1e1e24] px-6 py-3 rounded-2xl border border-white/20 shadow-2xl z-[100]">
                 <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} className="p-2 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronLeft size={20}/></button>
                 <span className="text-sm font-bold text-white tracking-wider min-w-[80px] text-center">Page {currentPage} / {numPages}</span>
