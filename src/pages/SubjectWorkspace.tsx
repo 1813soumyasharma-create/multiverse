@@ -507,14 +507,22 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                     {activeMaterial.type === 'image' && <img src={activeMaterial.url} className="max-w-full h-auto rounded object-contain" />}
                     {activeMaterial.type === 'pdf' && (
                       <div className="bg-white rounded shadow-2xl overflow-hidden">
-                        <Document file={activeMaterial.url} onLoadSuccess={({ numPages }) => setNumPages(numPages)} className="flex flex-col items-center">
+                        <Document 
+                          file={activeMaterial.url} 
+                          onLoadSuccess={({ numPages }) => setNumPages(numPages)} 
+                          onLoadError={(error) => console.error("PDF Load Error:", error)}
+                          className="flex flex-col items-center"
+                        >
                           <Page pageNumber={currentPage} width={pdfWidth} renderTextLayer={false} renderAnnotationLayer={false} />
                         </Document>
                       </div>
                     )}
                     {activeMaterial.type === 'ppt' && (
                       <div className="w-full flex flex-col items-center">
-                        <p className="text-xs text-gray-400 mb-2">Use the arrows inside the slide window below to change slides</p>
+                         <div className="flex justify-between items-center w-full mb-2">
+                           <p className="text-xs text-gray-400">Use the arrows inside the slide window below to change slides</p>
+                           <a href={activeMaterial.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">Open Original <ExternalLink size={12}/></a>
+                         </div>
                         <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(activeMaterial.url)}`} className="w-[900px] max-w-full h-[75vh] rounded border-none bg-white shadow-2xl" title="PPT" />
                       </div>
                     )}
@@ -552,12 +560,12 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
               )}
             </div>
 
-            {/* FLOATING PAGINATION FOR PDFS (Unmissable) */}
+            {/* BULLETPROOF PAGINATION (Fixed to screen) */}
             {activeMaterial?.type === 'pdf' && numPages && (
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/80 backdrop-blur-md px-5 py-2.5 rounded-2xl border border-white/20 shadow-2xl z-30">
-                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} className="p-1.5 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronLeft size={20}/></button>
+              <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-[#1e1e24] px-6 py-3 rounded-2xl border border-white/20 shadow-2xl z-[100]">
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} className="p-2 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronLeft size={20}/></button>
                 <span className="text-sm font-bold text-white tracking-wider min-w-[80px] text-center">Page {currentPage} / {numPages}</span>
-                <button onClick={() => setCurrentPage(p => Math.min(numPages, p + 1))} disabled={currentPage >= numPages} className="p-1.5 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronRight size={20}/></button>
+                <button onClick={() => setCurrentPage(p => Math.min(numPages, p + 1))} disabled={currentPage >= numPages} className="p-2 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronRight size={20}/></button>
               </div>
             )}
           </>
