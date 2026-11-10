@@ -14,7 +14,8 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+// Reverted to CDN worker for stability on Vercel
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface StickyNoteData { id: string; x: number; y: number; text: string; page: number; }
 interface Material {
@@ -182,14 +183,13 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     e.stopPropagation(); setEditingMaterialId(mat.id); setUploadTitle(mat.title); setUploadUnit(mat.unit); setUploadError(''); setIsUploadOpen(true);
   };
   
-  // THE FIX: Merge old and new annotations
   const saveAnnotations = async () => {
     if (!canvasRef.current || !user || !subject || !activeMaterial) return;
     try {
       const newDrawingDataUrl = await canvasRef.current.exportImage("png");
       let finalDataUrl = newDrawingDataUrl;
 
-      // If there are previous annotations, draw them underneath the new ones
+      // Merge logic
       if (activeMaterial.annotations) {
         finalDataUrl = await new Promise<string>((resolve) => {
           const canvas = document.createElement('canvas');
@@ -593,7 +593,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                     {activeMaterial.type === 'video' && <div className="w-full aspect-video bg-black rounded overflow-hidden shadow-2xl"><ReactPlayer url={activeMaterial.url} controls width="100%" height="100%" /></div>}
                     {activeMaterial.type === 'url' && <iframe src={activeMaterial.url} className="w-[800px] h-[600px] rounded border-none bg-white shadow-2xl" title="Web" />}
 
-                    {/* THE FIX: Always show old annotations behind the canvas */}
                     {activeMaterial.annotations && <img src={activeMaterial.annotations} className="absolute inset-0 pointer-events-none w-full h-full object-contain z-10" />}
                     
                     {isDrawing && (
