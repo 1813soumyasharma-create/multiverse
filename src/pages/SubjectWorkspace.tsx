@@ -87,7 +87,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   const [pyqFile, setPyqFile] = useState<File | null>(null);
   const [isPyqSaving, setIsPyqSaving] = useState(false);
 
-  // Task state
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState<'High'|'Medium'|'Low'>('Medium');
 
@@ -459,13 +458,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                 )}
                 {activeMaterial && (
                   <>
-                    {activeMaterial.type === 'pdf' && numPages && (
-                      <div className="flex items-center gap-1 bg-black/40 rounded-lg px-2 py-1 mr-2 border border-white/10">
-                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} className="p-1 disabled:opacity-30 hover:bg-white/10 rounded"><ChevronLeft size={16}/></button>
-                        <span className="text-xs text-gray-300 min-w-[60px] text-center">Page {currentPage} / {numPages}</span>
-                        <button onClick={() => setCurrentPage(p => Math.min(numPages, p + 1))} disabled={currentPage >= numPages} className="p-1 disabled:opacity-30 hover:bg-white/10 rounded"><ChevronRight size={16}/></button>
-                      </div>
-                    )}
                     <button onClick={toggleBookmark} className={`p-2 rounded ${activeMaterial.isBookmarked ? 'text-yellow-400 bg-white/5' : 'text-gray-400 hover:bg-white/10'}`}><Bookmark size={16} className={activeMaterial.isBookmarked ? "fill-yellow-400" : ""} /></button>
                     <div className="relative">
                       <div className="flex bg-black/40 rounded-lg border border-white/10 overflow-hidden">
@@ -508,7 +500,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
               </div>
             </div>
 
-            <div className="flex-1 overflow-auto p-8 flex justify-center relative" onClick={() => setIsNotesMenuOpen(false)}>
+            <div className="flex-1 overflow-auto p-8 flex justify-center relative pb-24" onClick={() => setIsNotesMenuOpen(false)}>
               {activeMaterial ? (
                 <div className="relative w-full max-w-4xl flex justify-center" ref={containerRef} onClick={(e) => e.stopPropagation()}>
                   <div className="relative">
@@ -516,18 +508,21 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                     {activeMaterial.type === 'pdf' && (
                       <div className="bg-white rounded shadow-2xl overflow-hidden">
                         <Document file={activeMaterial.url} onLoadSuccess={({ numPages }) => setNumPages(numPages)} className="flex flex-col items-center">
-                          {/* FIXED: removed url prop and eraseMode prop from Page */}
                           <Page pageNumber={currentPage} width={pdfWidth} renderTextLayer={false} renderAnnotationLayer={false} />
                         </Document>
                       </div>
                     )}
-                    {activeMaterial.type === 'ppt' && <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(activeMaterial.url)}`} className="w-[800px] h-[600px] rounded border-none bg-white shadow-2xl" title="PPT" />}
+                    {activeMaterial.type === 'ppt' && (
+                      <div className="w-full flex flex-col items-center">
+                        <p className="text-xs text-gray-400 mb-2">Use the arrows inside the slide window below to change slides</p>
+                        <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(activeMaterial.url)}`} className="w-[900px] max-w-full h-[75vh] rounded border-none bg-white shadow-2xl" title="PPT" />
+                      </div>
+                    )}
                     {activeMaterial.type === 'video' && <div className="w-full aspect-video bg-black rounded overflow-hidden shadow-2xl"><ReactPlayer url={activeMaterial.url} controls width="100%" height="100%" /></div>}
                     {activeMaterial.type === 'url' && <iframe src={activeMaterial.url} className="w-[800px] h-[600px] rounded border-none bg-white shadow-2xl" title="Web" />}
 
                     {isDrawing && (
                       <div className="absolute inset-0 z-20 pointer-events-auto">
-                        {/* FIXED: removed eraseMode prop from ReactSketchCanvas */}
                         <ReactSketchCanvas ref={canvasRef} strokeWidth={drawMode === 'highlighter' ? 15 : 4} strokeColor={drawMode === 'highlighter' ? 'rgba(255, 230, 0, 0.4)' : drawColor} eraserWidth={eraserSize} canvasColor="transparent" style={{ border: 'none' }} allowOnlyPointerType="all" withTimestamp={true} />
                       </div>
                     )}
@@ -556,6 +551,15 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                 </div>
               )}
             </div>
+
+            {/* FLOATING PAGINATION FOR PDFS (Unmissable) */}
+            {activeMaterial?.type === 'pdf' && numPages && (
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/80 backdrop-blur-md px-5 py-2.5 rounded-2xl border border-white/20 shadow-2xl z-30">
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} className="p-1.5 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronLeft size={20}/></button>
+                <span className="text-sm font-bold text-white tracking-wider min-w-[80px] text-center">Page {currentPage} / {numPages}</span>
+                <button onClick={() => setCurrentPage(p => Math.min(numPages, p + 1))} disabled={currentPage >= numPages} className="p-1.5 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronRight size={20}/></button>
+              </div>
+            )}
           </>
         )}
       </div>
