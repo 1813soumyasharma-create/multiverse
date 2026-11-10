@@ -97,17 +97,12 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   useEffect(() => {
     setCurrentPage(1); setNumPages(null); setActiveNoteId(null);
     if (subject) {
-      setEditTitle(subject.title);
-      setEditRole(subject.role);
-      setEditTheme(subject.theme);
-      setEditExamDate(subject.examDate || '');
+      setEditTitle(subject.title); setEditRole(subject.role); setEditTheme(subject.theme); setEditExamDate(subject.examDate || '');
     }
   }, [activeMaterial?.id, subject]);
 
   useEffect(() => {
     if (!user || !subject) return;
-    
-    // Fetch Materials
     const unsubMats = onSnapshot(query(collection(db, `users/${user.uid}/subjects/${subject.id}/materials`)), (snapshot) => {
       const mats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Material));
       setMaterials(mats);
@@ -116,17 +111,12 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
         if (updated) setActiveMaterial(updated);
       } else if (mats.length > 0) setActiveMaterial(mats[0]);
     });
-
-    // Fetch PYQs
     const unsubPyqs = onSnapshot(query(collection(db, `users/${user.uid}/subjects/${subject.id}/pyqs`)), (snapshot) => {
       setPyqs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PYQ)));
     });
-
-    // Fetch Tasks
     const unsubTasks = onSnapshot(query(collection(db, `users/${user.uid}/subjects/${subject.id}/tasks`)), (snapshot) => {
       setTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task)));
     });
-
     return () => { unsubMats(); unsubPyqs(); unsubTasks(); };
   }, [user, subject]);
 
@@ -137,33 +127,19 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
 
   useEffect(() => {
     const handleResize = () => { if (containerRef.current) setPdfWidth(containerRef.current.clientWidth - 40); };
-    window.addEventListener('resize', handleResize);
-    handleResize();
+    window.addEventListener('resize', handleResize); handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const saveKey = (key: string) => {
-    const cleanKey = key.trim();
-    setApiKey(cleanKey);
-    localStorage.setItem('gemini-key', cleanKey);
-    setIsSettingsOpen(false);
-  };
-
+  const saveKey = (key: string) => { const cleanKey = key.trim(); setApiKey(cleanKey); localStorage.setItem('gemini-key', cleanKey); setIsSettingsOpen(false); };
   const handleSaveSubjectDetails = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !subject) return;
+    e.preventDefault(); if (!user || !subject) return;
     try {
-      await updateDoc(doc(db, `users/${user.uid}/subjects`, subject.id), {
-        title: editTitle, role: editRole, theme: editTheme, examDate: editExamDate
-      });
+      await updateDoc(doc(db, `users/${user.uid}/subjects`, subject.id), { title: editTitle, role: editRole, theme: editTheme, examDate: editExamDate });
       setIsSubjectModalOpen(false);
     } catch (err) { alert("Failed to update details."); }
   };
-
-  const openUploadModal = () => {
-    setEditingMaterialId(null); setUploadTitle(''); setUploadUnit('General'); setUploadError(''); setIsUploadOpen(true);
-  };
-
+  const openUploadModal = () => { setEditingMaterialId(null); setUploadTitle(''); setUploadUnit('General'); setUploadError(''); setIsUploadOpen(true); };
   const handleUpdateMaterial = async () => {
     if (!user || !subject || !editingMaterialId) return;
     setIsUploading(true); setUploadError('');
@@ -172,15 +148,12 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
       setIsUploadOpen(false); setEditingMaterialId(null);
     } catch (err: any) { setUploadError(err.message); } finally { setIsUploading(false); }
   };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user || !subject) return;
+    const file = e.target.files?.[0]; if (!file || !user || !subject) return;
     setIsUploading(true); setUploadError(''); setUploadStatus('Uploading...');
     try {
       let downloadUrl = '', textContent = '', type: Material['type'] = 'image';
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.uid}/${subject.id}/${Date.now()}.${fileExt}`;
+      const fileExt = file.name.split('.').pop(); const fileName = `${user.uid}/${subject.id}/${Date.now()}.${fileExt}`;
       const { error } = await supabase.storage.from('materials').upload(fileName, file, { cacheControl: '3600', upsert: false });
       if (error) throw error;
       const { data: urlData } = supabase.storage.from('materials').getPublicUrl(fileName);
@@ -194,46 +167,37 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
       setIsUploadOpen(false); setUploadTitle('');
     } catch (err: any) { setUploadError(err.message); } finally { setIsUploading(false); setUploadStatus(''); }
   };
-
   const handleDeleteMaterial = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!user || !subject || !confirm('Delete this material?')) return;
+    e.stopPropagation(); if (!user || !subject || !confirm('Delete this material?')) return;
     await deleteDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, id));
     if (activeMaterial?.id === id) setActiveMaterial(null);
   };
-
   const openEditMaterial = (mat: Material, e: React.MouseEvent) => {
     e.stopPropagation(); setEditingMaterialId(mat.id); setUploadTitle(mat.title); setUploadUnit(mat.unit); setUploadError(''); setIsUploadOpen(true);
   };
-
   const saveAnnotations = async () => {
     if (!canvasRef.current || !user || !subject || !activeMaterial) return;
     const dataUrl = await canvasRef.current.exportImage("png");
     await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { annotations: dataUrl });
     setActiveMaterial({ ...activeMaterial, annotations: dataUrl }); setIsDrawing(false);
   };
-
   const toggleBookmark = async () => {
     if (!user || !subject || !activeMaterial) return;
     await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { isBookmarked: !activeMaterial.isBookmarked });
   };
-
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (!isAddingNote || !containerRef.current || !user || !subject || !activeMaterial) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const x = ((e.clientX - rect.left) / rect.width) * 100; const y = ((e.clientY - rect.top) / rect.height) * 100;
     const newNotes = [...notes, { id: Date.now().toString(), x, y, text: '', page: currentPage }];
     setNotes(newNotes); setIsAddingNote(false); setActiveNoteId(newNotes[newNotes.length-1].id); saveNotes(newNotes);
   };
-
   const updateNoteText = (id: string, text: string) => setNotes(notes.map(n => n.id === id ? { ...n, text } : n));
   const removeNote = (id: string, e: React.MouseEvent) => { e.stopPropagation(); const newNotes = notes.filter(n => n.id !== id); setNotes(newNotes); if (activeNoteId === id) setActiveNoteId(null); saveNotes(newNotes); };
   const saveNotes = async (notesToSave = notes) => {
     if (!user || !subject || !activeMaterial) return;
     await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { stickyNotes: notesToSave });
   };
-
   const handleDragStart = (e: React.PointerEvent, id: string) => {
     e.stopPropagation(); setDraggedNoteId(id);
     const note = notes.find(n => n.id === id); if (!note || !containerRef.current) return;
@@ -246,16 +210,12 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     setNotes(prev => prev.map(n => n.id === draggedNoteId ? { ...n, x: Math.max(0, Math.min(100, ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100)), y: Math.max(0, Math.min(100, ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100)) } : n));
   };
   const handleDragEnd = () => { if (draggedNoteId) saveNotes(); setDraggedNoteId(null); };
-
   const handleSavePyq = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !subject || !pyqTitle) return;
-    setIsPyqSaving(true);
+    e.preventDefault(); if (!user || !subject || !pyqTitle) return; setIsPyqSaving(true);
     try {
       let fileUrl = '', fileType = '', textContent = '';
       if (pyqFile) {
-        const fileExt = pyqFile.name.split('.').pop();
-        const fileName = `${user.uid}/${subject.id}/pyqs/${Date.now()}.${fileExt}`;
+        const fileExt = pyqFile.name.split('.').pop(); const fileName = `${user.uid}/${subject.id}/pyqs/${Date.now()}.${fileExt}`;
         const { error } = await supabase.storage.from('materials').upload(fileName, pyqFile, { cacheControl: '3600', upsert: false });
         if (error) throw error;
         const { data: urlData } = supabase.storage.from('materials').getPublicUrl(fileName);
@@ -268,42 +228,30 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
       setIsPyqOpen(false); setPyqTitle(''); setPyqYear(''); setPyqMarks(''); setPyqFile(null);
     } catch (err) { alert("Error saving PYQ: " + err); } finally { setIsPyqSaving(false); }
   };
-
   const deletePyq = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!user || !subject || !confirm('Delete PYQ?')) return;
+    e.stopPropagation(); if (!user || !subject || !confirm('Delete PYQ?')) return;
     await deleteDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/pyqs`, id));
   };
-
   const handleAddTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !subject || !newTaskTitle.trim()) return;
-    await addDoc(collection(db, `users/${user.uid}/subjects/${subject.id}/tasks`), {
-      title: newTaskTitle, status: 'todo', priority: newTaskPriority
-    });
+    e.preventDefault(); if (!user || !subject || !newTaskTitle.trim()) return;
+    await addDoc(collection(db, `users/${user.uid}/subjects/${subject.id}/tasks`), { title: newTaskTitle, status: 'todo', priority: newTaskPriority });
     setIsTaskModalOpen(false); setNewTaskTitle('');
   };
-
   const moveTask = async (taskId: string, currentStatus: string) => {
     if (!user || !subject) return;
-    let nextStatus = 'todo';
-    if (currentStatus === 'todo') nextStatus = 'progress';
-    else if (currentStatus === 'progress') nextStatus = 'done';
+    let nextStatus = 'todo'; if (currentStatus === 'todo') nextStatus = 'progress'; else if (currentStatus === 'progress') nextStatus = 'done';
     await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/tasks`, taskId), { status: nextStatus });
   };
-
   const deleteTask = async (taskId: string) => {
     if (!user || !subject) return;
     await deleteDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/tasks`, taskId));
   };
 
   const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !apiKey) return;
+    e.preventDefault(); if (!input.trim() || !apiKey) return;
     const userMsg = input; setMessages(prev => [...prev, { role: 'user', text: userMsg }]); setInput(''); setIsLoading(true);
     try {
-      let contextText = "";
-      materials.forEach(m => { if (m.textContent) contextText += `\n--- ${m.title} ---\n${m.textContent.substring(0, 4000)}...\n`; });
+      let contextText = ""; materials.forEach(m => { if (m.textContent) contextText += `\n--- ${m.title} ---\n${m.textContent.substring(0, 4000)}...\n`; });
       const prompt = `Tutor for ${subject?.title}. Docs:\n${contextText}\n\nQ: ${userMsg}`;
       const modelsToTry = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash-latest", "gemini-pro"];
       let botText = ""; let success = false; let lastError;
@@ -312,10 +260,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
           const ai = new GoogleGenAI({ apiKey });
           const response = await ai.models.generateContent({ model: modelName, contents: prompt });
           botText = response.text || "No response."; success = true; break;
-        } catch (error: any) {
-          lastError = error;
-          if (error.message.includes("503") || error.message.includes("high demand")) await new Promise(r => setTimeout(r, 1000));
-        }
+        } catch (error: any) { lastError = error; if (error.message.includes("503") || error.message.includes("high demand")) await new Promise(r => setTimeout(r, 1000)); }
       }
       if (!success) throw lastError;
       setMessages(prev => [...prev, { role: 'bot', text: botText }]);
@@ -329,26 +274,16 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     const getKeywords = (text: string) => text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 3 && !stopWords.has(w));
     const scoredMaterials = materials.map(mat => {
       let score = 0; const reasons: string[] = [];
-      const matUnit = (mat.unit || 'Unassigned').toLowerCase().trim();
-      const matText = `${mat.title} ${mat.textContent || ''}`.toLowerCase();
-      const matWords = getKeywords(matText);
-      const matFreq: Record<string, number> = {};
-      matWords.forEach(w => matFreq[w] = (matFreq[w] || 0) + 1);
+      const matUnit = (mat.unit || 'Unassigned').toLowerCase().trim(); const matText = `${mat.title} ${mat.textContent || ''}`.toLowerCase();
+      const matWords = getKeywords(matText); const matFreq: Record<string, number> = {}; matWords.forEach(w => matFreq[w] = (matFreq[w] || 0) + 1);
       pyqs.forEach(pyq => {
-        const pyqUnit = (pyq.unit || 'Unassigned').toLowerCase().trim();
-        const pyqText = `${pyq.title} ${pyq.textContent || ''}`;
-        const pyqWords = getKeywords(pyqText);
-        const marks = Number(pyq.marks) || 1;
-        let pyqScore = 0;
+        const pyqUnit = (pyq.unit || 'Unassigned').toLowerCase().trim(); const pyqText = `${pyq.title} ${pyq.textContent || ''}`;
+        const pyqWords = getKeywords(pyqText); const marks = Number(pyq.marks) || 1; let pyqScore = 0;
         if (matUnit !== 'unassigned' && pyqUnit !== 'unassigned' && (matUnit === pyqUnit || matUnit.includes(pyqUnit) || pyqUnit.includes(matUnit))) {
           pyqScore += 200; if (!reasons.includes(`Unit Match: ${pyq.unit}`)) reasons.push(`Unit Match: ${pyq.unit}`);
         }
-        let matchCount = 0;
-        pyqWords.forEach(word => {
-          if (matFreq[word]) {
-             pyqScore += word.length * Math.min(matFreq[word], 10); matchCount++;
-             if (matchCount <= 4 && !reasons.includes(`Keyword: ${word}`)) reasons.push(`Keyword: ${word}`);
-          }
+        let matchCount = 0; pyqWords.forEach(word => {
+          if (matFreq[word]) { pyqScore += word.length * Math.min(matFreq[word], 10); matchCount++; if (matchCount <= 4 && !reasons.includes(`Keyword: ${word}`)) reasons.push(`Keyword: ${word}`); }
         });
         score += pyqScore * marks;
       });
@@ -376,15 +311,9 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
           <button onClick={onBack} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white"><ArrowLeft size={16} /> Back</button>
           <div className="flex items-center gap-1">
             <button onClick={() => setIsSubjectModalOpen(true)} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Subject Settings"><Settings size={16} /></button>
-            {activeView === 'documents' && (
-              <button onClick={openUploadModal} className="p-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30" title="Upload Material"><Upload size={16} /></button>
-            )}
-            {activeView === 'pyqs' && (
-              <button onClick={() => setIsPyqOpen(true)} className="p-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30" title="Add PYQ"><Plus size={16} /></button>
-            )}
-            {activeView === 'tasks' && (
-              <button onClick={() => setIsTaskModalOpen(true)} className="p-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30" title="Add Task"><Plus size={16} /></button>
-            )}
+            {activeView === 'documents' && (<button onClick={openUploadModal} className="p-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30" title="Upload Material"><Upload size={16} /></button>)}
+            {activeView === 'pyqs' && (<button onClick={() => setIsPyqOpen(true)} className="p-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30" title="Add PYQ"><Plus size={16} /></button>)}
+            {activeView === 'tasks' && (<button onClick={() => setIsTaskModalOpen(true)} className="p-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30" title="Add Task"><Plus size={16} /></button>)}
           </div>
         </div>
 
@@ -424,7 +353,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
 
       <div className="flex-1 flex flex-col min-w-0 bg-[#1a1a1f] relative">
         
-        {/* ANALYTICS VIEW */}
         {activeView === 'analytics' && (
           <div className="p-8 h-full overflow-y-auto">
             <div className="mb-8"><h2 className="text-2xl font-bold text-white flex items-center gap-2"><Sparkles className="text-secondary" /> Material Weight Analysis</h2><p className="text-gray-400 text-sm mt-1">AI reads your PDFs and weights them based on term frequency against your PYQs.</p></div>
@@ -453,7 +381,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
           </div>
         )}
 
-        {/* PYQ GALLERY VIEW */}
         {activeView === 'pyqs' && (
           <div className="p-8 h-full overflow-y-auto">
             <div className="flex justify-between items-center mb-8"><div><h2 className="text-2xl font-bold text-white mb-1">PYQ Vault</h2><p className="text-gray-400 text-sm">Manage and view your past year questions.</p></div><button onClick={() => setIsPyqOpen(true)} className="bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-xl text-sm font-medium transition-all shadow-lg shadow-primary/20 flex items-center gap-2"><Plus size={16} /> Add PYQ</button></div>
@@ -472,71 +399,43 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
           </div>
         )}
 
-        {/* TASKS KANBAN VIEW */}
         {activeView === 'tasks' && (
           <div className="p-8 h-full overflow-y-auto">
             <div className="flex justify-between items-center mb-8">
               <div><h2 className="text-2xl font-bold text-white mb-1">Task Board</h2><p className="text-gray-400 text-sm">Track your syllabus and revision progress.</p></div>
               <button onClick={() => setIsTaskModalOpen(true)} className="bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-xl text-sm font-medium transition-all shadow-lg shadow-primary/20 flex items-center gap-2"><Plus size={16} /> Add Task</button>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* TO DO COLUMN */}
               <div className="glass rounded-2xl p-4 flex flex-col h-[60vh]">
-                <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2">
-                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">To Do</h3>
-                  <span className="ml-auto text-xs bg-white/10 px-2 rounded-full text-gray-400">{tasks.filter(t => t.status === 'todo').length}</span>
-                </div>
+                <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div><h3 className="text-sm font-bold text-white uppercase tracking-wider">To Do</h3><span className="ml-auto text-xs bg-white/10 px-2 rounded-full text-gray-400">{tasks.filter(t => t.status === 'todo').length}</span></div>
                 <div className="flex-1 overflow-y-auto space-y-3">
                   {tasks.filter(t => t.status === 'todo').map(task => (
                     <div key={task.id} className="bg-[#1e1e24] p-4 rounded-xl border border-white/5 group relative">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase ${task.priority === 'High' ? 'bg-red-500/20 text-red-400' : task.priority === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>{task.priority}</span>
-                        <button onClick={() => deleteTask(task.id)} className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
-                      </div>
+                      <div className="flex justify-between items-start mb-2"><span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase ${task.priority === 'High' ? 'bg-red-500/20 text-red-400' : task.priority === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>{task.priority}</span><button onClick={() => deleteTask(task.id)} className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button></div>
                       <p className="text-sm text-white font-medium mb-4">{task.title}</p>
                       <button onClick={() => moveTask(task.id, 'todo')} className="w-full py-1.5 bg-white/5 hover:bg-white/10 text-xs text-gray-300 rounded flex items-center justify-center gap-1 transition-colors">Start <ArrowRight size={12}/></button>
                     </div>
                   ))}
                 </div>
               </div>
-
-              {/* IN PROGRESS COLUMN */}
               <div className="glass rounded-2xl p-4 flex flex-col h-[60vh]">
-                <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2">
-                  <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">In Progress</h3>
-                  <span className="ml-auto text-xs bg-white/10 px-2 rounded-full text-gray-400">{tasks.filter(t => t.status === 'progress').length}</span>
-                </div>
+                <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2"><div className="w-2 h-2 rounded-full bg-yellow-500"></div><h3 className="text-sm font-bold text-white uppercase tracking-wider">In Progress</h3><span className="ml-auto text-xs bg-white/10 px-2 rounded-full text-gray-400">{tasks.filter(t => t.status === 'progress').length}</span></div>
                 <div className="flex-1 overflow-y-auto space-y-3">
                   {tasks.filter(t => t.status === 'progress').map(task => (
                     <div key={task.id} className="bg-[#1e1e24] p-4 rounded-xl border border-white/5 group relative">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase ${task.priority === 'High' ? 'bg-red-500/20 text-red-400' : task.priority === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>{task.priority}</span>
-                        <button onClick={() => deleteTask(task.id)} className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
-                      </div>
+                      <div className="flex justify-between items-start mb-2"><span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase ${task.priority === 'High' ? 'bg-red-500/20 text-red-400' : task.priority === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>{task.priority}</span><button onClick={() => deleteTask(task.id)} className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button></div>
                       <p className="text-sm text-white font-medium mb-4">{task.title}</p>
                       <button onClick={() => moveTask(task.id, 'progress')} className="w-full py-1.5 bg-green-500/10 hover:bg-green-500/20 text-xs text-green-400 rounded flex items-center justify-center gap-1 transition-colors"><CheckSquare size={12}/> Mark Done</button>
                     </div>
                   ))}
                 </div>
               </div>
-
-              {/* DONE COLUMN */}
               <div className="glass rounded-2xl p-4 flex flex-col h-[60vh]">
-                <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">Done</h3>
-                  <span className="ml-auto text-xs bg-white/10 px-2 rounded-full text-gray-400">{tasks.filter(t => t.status === 'done').length}</span>
-                </div>
+                <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2"><div className="w-2 h-2 rounded-full bg-green-500"></div><h3 className="text-sm font-bold text-white uppercase tracking-wider">Done</h3><span className="ml-auto text-xs bg-white/10 px-2 rounded-full text-gray-400">{tasks.filter(t => t.status === 'done').length}</span></div>
                 <div className="flex-1 overflow-y-auto space-y-3">
                   {tasks.filter(t => t.status === 'done').map(task => (
                     <div key={task.id} className="bg-[#1e1e24] p-4 rounded-xl border border-white/5 group relative opacity-60">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] font-bold px-2 py-1 rounded-md uppercase bg-green-500/10 text-green-500 border border-green-500/20">Completed</span>
-                        <button onClick={() => deleteTask(task.id)} className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
-                      </div>
+                      <div className="flex justify-between items-start mb-2"><span className="text-[10px] font-bold px-2 py-1 rounded-md uppercase bg-green-500/10 text-green-500 border border-green-500/20">Completed</span><button onClick={() => deleteTask(task.id)} className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button></div>
                       <p className="text-sm text-gray-300 font-medium line-through">{task.title}</p>
                     </div>
                   ))}
@@ -546,7 +445,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
           </div>
         )}
 
-        {/* DOCUMENT VIEWER */}
         {activeView === 'documents' && (
           <>
             <div className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-panel/80 backdrop-blur-md z-30 shrink-0">
@@ -618,6 +516,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                     {activeMaterial.type === 'pdf' && (
                       <div className="bg-white rounded shadow-2xl overflow-hidden">
                         <Document file={activeMaterial.url} onLoadSuccess={({ numPages }) => setNumPages(numPages)} className="flex flex-col items-center">
+                          {/* FIXED: removed url prop and eraseMode prop from Page */}
                           <Page pageNumber={currentPage} width={pdfWidth} renderTextLayer={false} renderAnnotationLayer={false} />
                         </Document>
                       </div>
@@ -628,7 +527,8 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
 
                     {isDrawing && (
                       <div className="absolute inset-0 z-20 pointer-events-auto">
-                        <ReactSketchCanvas ref={canvasRef} strokeWidth={drawMode === 'highlighter' ? 15 : 4} strokeColor={drawMode === 'highlighter' ? 'rgba(255, 230, 0, 0.4)' : drawColor} eraserWidth={eraserSize} canvasColor="transparent" style={{ border: 'none' }} allowOnlyPointerType="all" withTimestamp={true}  />
+                        {/* FIXED: removed eraseMode prop from ReactSketchCanvas */}
+                        <ReactSketchCanvas ref={canvasRef} strokeWidth={drawMode === 'highlighter' ? 15 : 4} strokeColor={drawMode === 'highlighter' ? 'rgba(255, 230, 0, 0.4)' : drawColor} eraserWidth={eraserSize} canvasColor="transparent" style={{ border: 'none' }} allowOnlyPointerType="all" withTimestamp={true} />
                       </div>
                     )}
                     {!isDrawing && activeMaterial.annotations && <img src={activeMaterial.annotations} className="absolute inset-0 pointer-events-none w-full h-full object-contain z-10" />}
@@ -782,4 +682,3 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     </div>
   );
 }
-
