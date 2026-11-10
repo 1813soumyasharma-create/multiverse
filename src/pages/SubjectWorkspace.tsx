@@ -13,7 +13,8 @@ import type { Subject } from './Dashboard';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 interface StickyNoteData { id: string; x: number; y: number; text: string; page: number; }
 interface Material {
@@ -131,22 +132,26 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   }, []);
 
   const saveKey = (key: string) => { const cleanKey = key.trim(); setApiKey(cleanKey); localStorage.setItem('gemini-key', cleanKey); setIsSettingsOpen(false); };
+  
   const handleSaveSubjectDetails = async (e: React.FormEvent) => {
     e.preventDefault(); if (!user || !subject) return;
     try {
       await updateDoc(doc(db, `users/${user.uid}/subjects`, subject.id), { title: editTitle, role: editRole, theme: editTheme, examDate: editExamDate });
       setIsSubjectModalOpen(false);
-    } catch (err) { alert("Failed to update details."); }
+    } catch (err: any) { alert("Failed to update details. Check Firebase Rules."); }
   };
+  
   const openUploadModal = () => { setEditingMaterialId(null); setUploadTitle(''); setUploadUnit('General'); setUploadError(''); setIsUploadOpen(true); };
+  
   const handleUpdateMaterial = async () => {
     if (!user || !subject || !editingMaterialId) return;
     setIsUploading(true); setUploadError('');
     try {
       await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, editingMaterialId), { title: uploadTitle, unit: uploadUnit });
       setIsUploadOpen(false); setEditingMaterialId(null);
-    } catch (err: any) { setUploadError(err.message); } finally { setIsUploading(false); }
+    } catch (err: any) { setUploadError(err.message); alert("Failed to save material. Check Firebase Rules."); } finally { setIsUploading(false); }
   };
+  
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file || !user || !subject) return;
     setIsUploading(true); setUploadError(''); setUploadStatus('Uploading...');
@@ -164,26 +169,36 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
         title: uploadTitle || file.name, type, url: downloadUrl, unit: uploadUnit, isBookmarked: false, stickyNotes: [], textContent
       });
       setIsUploadOpen(false); setUploadTitle('');
-    } catch (err: any) { setUploadError(err.message); } finally { setIsUploading(false); setUploadStatus(''); }
+    } catch (err: any) { setUploadError(err.message); alert("Upload failed. Check Firebase Rules and Storage Limits."); } finally { setIsUploading(false); setUploadStatus(''); }
   };
+  
   const handleDeleteMaterial = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation(); if (!user || !subject || !confirm('Delete this material?')) return;
-    await deleteDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, id));
-    if (activeMaterial?.id === id) setActiveMaterial(null);
+    try { await deleteDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, id)); if (activeMaterial?.id === id) setActiveMaterial(null); } 
+    catch (err) { alert("Failed to delete."); }
   };
+  
   const openEditMaterial = (mat: Material, e: React.MouseEvent) => {
     e.stopPropagation(); setEditingMaterialId(mat.id); setUploadTitle(mat.title); setUploadUnit(mat.unit); setUploadError(''); setIsUploadOpen(true);
   };
+  
   const saveAnnotations = async () => {
     if (!canvasRef.current || !user || !subject || !activeMaterial) return;
-    const dataUrl = await canvasRef.current.exportImage("png");
-    await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { annotations: dataUrl });
-    setActiveMaterial({ ...activeMaterial, annotations: dataUrl }); setIsDrawing(false);
+    try {
+      const dataUrl = await canvasRef.current.exportImage("png");
+      await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { annotations: dataUrl });
+      setActiveMaterial({ ...activeMaterial, annotations: dataUrl }); setIsDrawing(false);
+    } catch (err) {
+      alert("Failed to save drawing. The image might be too large for Firestore.");
+    }
   };
+  
   const toggleBookmark = async () => {
     if (!user || !subject || !activeMaterial) return;
-    await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { isBookmarked: !activeMaterial.isBookmarked });
+    try { await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { isBookmarked: !activeMaterial.isBookmarked }); }
+    catch (err) { alert("Failed to bookmark."); }
   };
+  
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (!isAddingNote || !containerRef.current || !user || !subject || !activeMaterial) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -191,24 +206,31 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     const newNotes = [...notes, { id: Date.now().toString(), x, y, text: '', page: currentPage }];
     setNotes(newNotes); setIsAddingNote(false); setActiveNoteId(newNotes[newNotes.length-1].id); saveNotes(newNotes);
   };
+  
   const updateNoteText = (id: string, text: string) => setNotes(notes.map(n => n.id === id ? { ...n, text } : n));
   const removeNote = (id: string, e: React.MouseEvent) => { e.stopPropagation(); const newNotes = notes.filter(n => n.id !== id); setNotes(newNotes); if (activeNoteId === id) setActiveNoteId(null); saveNotes(newNotes); };
+  
   const saveNotes = async (notesToSave = notes) => {
     if (!user || !subject || !activeMaterial) return;
-    await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { stickyNotes: notesToSave });
+    try { await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { stickyNotes: notesToSave }); }
+    catch (err) { alert("Failed to save sticky note. Check Firebase rules."); }
   };
+  
   const handleDragStart = (e: React.PointerEvent, id: string) => {
     e.stopPropagation(); setDraggedNoteId(id);
     const note = notes.find(n => n.id === id); if (!note || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     setDragOffset({ x: (e.clientX - rect.left) - (note.x / 100) * rect.width, y: (e.clientY - rect.top) - (note.y / 100) * rect.height });
   };
+  
   const handleDragMove = (e: React.PointerEvent) => {
     if (!draggedNoteId || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     setNotes(prev => prev.map(n => n.id === draggedNoteId ? { ...n, x: Math.max(0, Math.min(100, ((e.clientX - rect.left - dragOffset.x) / rect.width) * 100)), y: Math.max(0, Math.min(100, ((e.clientY - rect.top - dragOffset.y) / rect.height) * 100)) } : n));
   };
+  
   const handleDragEnd = () => { if (draggedNoteId) saveNotes(); setDraggedNoteId(null); };
+  
   const handleSavePyq = async (e: React.FormEvent) => {
     e.preventDefault(); if (!user || !subject || !pyqTitle) return; setIsPyqSaving(true);
     try {
@@ -225,25 +247,31 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
         title: pyqTitle, year: pyqYear, unit: pyqUnit, marks: Number(pyqMarks) || 0, fileUrl, fileType, textContent
       });
       setIsPyqOpen(false); setPyqTitle(''); setPyqYear(''); setPyqMarks(''); setPyqFile(null);
-    } catch (err) { alert("Error saving PYQ: " + err); } finally { setIsPyqSaving(false); }
+    } catch (err) { alert("Error saving PYQ. Check Firebase Rules."); } finally { setIsPyqSaving(false); }
   };
+  
   const deletePyq = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation(); if (!user || !subject || !confirm('Delete PYQ?')) return;
-    await deleteDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/pyqs`, id));
+    try { await deleteDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/pyqs`, id)); } catch (err) { alert("Failed to delete PYQ."); }
   };
+  
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault(); if (!user || !subject || !newTaskTitle.trim()) return;
-    await addDoc(collection(db, `users/${user.uid}/subjects/${subject.id}/tasks`), { title: newTaskTitle, status: 'todo', priority: newTaskPriority });
-    setIsTaskModalOpen(false); setNewTaskTitle('');
+    try { await addDoc(collection(db, `users/${user.uid}/subjects/${subject.id}/tasks`), { title: newTaskTitle, status: 'todo', priority: newTaskPriority }); setIsTaskModalOpen(false); setNewTaskTitle(''); }
+    catch (err) { alert("Failed to add task. Check Firebase Rules."); }
   };
+  
   const moveTask = async (taskId: string, currentStatus: string) => {
     if (!user || !subject) return;
     let nextStatus = 'todo'; if (currentStatus === 'todo') nextStatus = 'progress'; else if (currentStatus === 'progress') nextStatus = 'done';
-    await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/tasks`, taskId), { status: nextStatus });
+    try { await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/tasks`, taskId), { status: nextStatus }); }
+    catch (err) { alert("Failed to move task."); }
   };
+  
   const deleteTask = async (taskId: string) => {
     if (!user || !subject) return;
-    await deleteDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/tasks`, taskId));
+    try { await deleteDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/tasks`, taskId)); }
+    catch (err) { alert("Failed to delete task."); }
   };
 
   const handleSend = async (e: React.FormEvent) => {
@@ -505,7 +533,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                 <div className="relative w-full max-w-4xl flex justify-center" ref={containerRef} onClick={(e) => e.stopPropagation()}>
                   <div className="relative">
                     {activeMaterial.type === 'image' && <img src={activeMaterial.url} className="max-w-full h-auto rounded object-contain" />}
-                                        {activeMaterial.type === 'pdf' && (
+                    {activeMaterial.type === 'pdf' && (
                       <div className="bg-white rounded shadow-2xl overflow-hidden relative">
                         {!numPages && (
                            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-sm p-4 text-center">
@@ -568,7 +596,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
               )}
             </div>
 
-            {/* BULLETPROOF PAGINATION (Fixed to screen) */}
             {activeMaterial?.type === 'pdf' && numPages && (
               <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-[#1e1e24] px-6 py-3 rounded-2xl border border-white/20 shadow-2xl z-[100]">
                 <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} className="p-2 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronLeft size={20}/></button>
@@ -702,4 +729,3 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     </div>
   );
 }
-
