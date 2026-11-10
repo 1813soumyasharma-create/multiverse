@@ -1,6 +1,7 @@
 ﻿import React from 'react';
-import { LayoutDashboard, BookOpen, FileText, Users, Settings, Globe, StickyNote, BrainCircuit, BarChart3, X } from 'lucide-react';
+import { LayoutDashboard, BookOpen, FileText, Users, Settings, Globe, StickyNote, BrainCircuit, BarChart3, X, LogOut } from 'lucide-react';
 import { useTheme, type Universe } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -11,8 +12,8 @@ interface SidebarProps {
 
 export default function Sidebar({ activeTab, setActiveTab, isMobileOpen, setIsMobileOpen }: SidebarProps) {
   const { universe, setUniverse, character } = useTheme();
+  const { logout } = useAuth();
 
-  // REMOVED Document Vault
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard' },
     { icon: BookOpen, label: 'My Subjects' },
@@ -70,7 +71,7 @@ export default function Sidebar({ activeTab, setActiveTab, isMobileOpen, setIsMo
               key={item.label}
               onClick={() => {
                 setActiveTab(item.label);
-                setIsMobileOpen(false); // Close on mobile after click
+                setIsMobileOpen(false); 
               }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                 activeTab === item.label 
@@ -84,7 +85,8 @@ export default function Sidebar({ activeTab, setActiveTab, isMobileOpen, setIsMo
           ))}
         </nav>
 
-        <div className="p-4 border-t border-border bg-black/20">
+        {/* User Profile & Logout */}
+        <div className="p-4 border-t border-border bg-black/20 flex flex-col gap-3">
           <div className="flex items-center gap-3 px-2">
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-secondary border-2 border-panel flex items-center justify-center text-xl">
               {character.avatar}
@@ -94,6 +96,14 @@ export default function Sidebar({ activeTab, setActiveTab, isMobileOpen, setIsMo
               <p className="text-[10px] text-primary uppercase tracking-wider font-bold truncate">{character.title}</p>
             </div>
           </div>
+          
+          <button 
+            onClick={logout} 
+            className="w-full flex items-center justify-center gap-2 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors border border-red-500/20"
+          >
+            <LogOut size={16} />
+            <span className="text-sm font-medium">Log Out</span>
+          </button>
         </div>
       </aside>
     </>
