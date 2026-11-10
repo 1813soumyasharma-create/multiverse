@@ -1,0 +1,33 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-image: none;
+  }
+
+  body {
+    @apply text-gray-200 antialiased overflow-hidden;
+    background-color: rgb(var(--color-bg));
+    font-family: 'Inter', system-ui, sans-serif;
+    
+    /* Applies a dark gradient over the image so text stays readable */
+    background-image: 
+      linear-gradient(to bottom, rgba(5, 8, 15, 0.70), rgba(5, 8, 15, 0.95)),
+      var(--bg-image);
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    transition: background-image 0.5s ease-in-out;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-panel/70 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl;
+  }
+  .glass-card {
+    @apply bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all duration-200 backdrop-blur-sm;
+  }
+}
