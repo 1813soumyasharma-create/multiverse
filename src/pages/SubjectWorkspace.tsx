@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
-import { Send, FileText, Bot, X, ArrowLeft, Upload, Link as LinkIcon, Menu, PenTool, Highlighter, Eraser, Save, Trash2, PlayCircle, FileImage, AlertCircle, Bookmark, StickyNote, GripHorizontal, ChevronLeft, ChevronRight, ChevronDown, Eye, EyeOff, PieChart as PieIcon, Edit2, HelpCircle, Plus, ExternalLink, Sparkles, TrendingUp, CheckCircle2, AlertTriangle, Settings, CheckSquare, ArrowRight } from 'lucide-react';
+import { Send, FileText, Bot, X, ArrowLeft, Upload, Link as LinkIcon, Menu, PenTool, Highlighter, Eraser, Save, Trash2, PlayCircle, FileImage, AlertCircle, Bookmark, StickyNote, GripHorizontal, ChevronLeft, ChevronRight, ChevronDown, Eye, EyeOff, PieChart as PieIcon, Edit2, HelpCircle, Plus, ExternalLink, Sparkles, TrendingUp, CheckCircle2, AlertTriangle, Settings, CheckSquare, ArrowRight, Eraser as EraserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { supabase } from '../lib/supabase';
@@ -14,8 +14,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// Reverted to CDN worker for production stability
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 interface StickyNoteData { id: string; x: number; y: number; text: string; page: number; }
 interface Material {
@@ -139,7 +138,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     try {
       await updateDoc(doc(db, `users/${user.uid}/subjects`, subject.id), { title: editTitle, role: editRole, theme: editTheme, examDate: editExamDate });
       setIsSubjectModalOpen(false);
-    } catch (err: any) { alert("Failed to update details. Check Firebase Rules."); }
+    } catch (err: any) { alert("Failed to update details."); }
   };
   
   const openUploadModal = () => { setEditingMaterialId(null); setUploadTitle(''); setUploadUnit('General'); setUploadError(''); setIsUploadOpen(true); };
@@ -150,7 +149,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     try {
       await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, editingMaterialId), { title: uploadTitle, unit: uploadUnit });
       setIsUploadOpen(false); setEditingMaterialId(null);
-    } catch (err: any) { setUploadError(err.message); alert("Failed to save material. Check Firebase Rules."); } finally { setIsUploading(false); }
+    } catch (err: any) { setUploadError(err.message); alert("Failed to save material."); } finally { setIsUploading(false); }
   };
   
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,7 +169,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
         title: uploadTitle || file.name, type, url: downloadUrl, unit: uploadUnit, isBookmarked: false, stickyNotes: [], textContent
       });
       setIsUploadOpen(false); setUploadTitle('');
-    } catch (err: any) { setUploadError(err.message); alert("Upload failed. Check Firebase Rules and Storage Limits."); } finally { setIsUploading(false); setUploadStatus(''); }
+    } catch (err: any) { setUploadError(err.message); alert("Upload failed."); } finally { setIsUploading(false); setUploadStatus(''); }
   };
   
   const handleDeleteMaterial = async (id: string, e: React.MouseEvent) => {
@@ -183,15 +182,54 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     e.stopPropagation(); setEditingMaterialId(mat.id); setUploadTitle(mat.title); setUploadUnit(mat.unit); setUploadError(''); setIsUploadOpen(true);
   };
   
+  // THE FIX: Merge old and new annotations
   const saveAnnotations = async () => {
     if (!canvasRef.current || !user || !subject || !activeMaterial) return;
     try {
-      const dataUrl = await canvasRef.current.exportImage("png");
-      await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { annotations: dataUrl });
-      setActiveMaterial({ ...activeMaterial, annotations: dataUrl }); setIsDrawing(false);
+      const newDrawingDataUrl = await canvasRef.current.exportImage("png");
+      let finalDataUrl = newDrawingDataUrl;
+
+      // If there are previous annotations, draw them underneath the new ones
+      if (activeMaterial.annotations) {
+        finalDataUrl = await new Promise<string>((resolve) => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const imgOld = new Image();
+          const imgNew = new Image();
+          let count = 0;
+
+          const onload = () => {
+            if (++count === 2) {
+              canvas.width = Math.max(imgOld.width, imgNew.width);
+              canvas.height = Math.max(imgOld.height, imgNew.height);
+              ctx?.drawImage(imgOld, 0, 0, canvas.width, canvas.height);
+              ctx?.drawImage(imgNew, 0, 0, canvas.width, canvas.height);
+              resolve(canvas.toDataURL('image/png'));
+            }
+          };
+          imgOld.onload = onload;
+          imgNew.onload = onload;
+          imgOld.src = activeMaterial.annotations!;
+          imgNew.src = newDrawingDataUrl;
+        });
+      }
+
+      await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { annotations: finalDataUrl });
+      setActiveMaterial({ ...activeMaterial, annotations: finalDataUrl });
+      setIsDrawing(false);
     } catch (err) {
-      alert("Failed to save drawing. The image might be too large for Firestore.");
+      alert("Failed to save drawing.");
     }
+  };
+
+  const clearAnnotations = async () => {
+    if (!user || !subject || !activeMaterial) return;
+    if (!confirm("Are you sure you want to erase ALL drawings on this document?")) return;
+    try {
+      await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { annotations: "" });
+      setActiveMaterial({ ...activeMaterial, annotations: "" });
+      if (canvasRef.current) canvasRef.current.clearCanvas();
+    } catch (err) { alert("Failed to clear."); }
   };
   
   const toggleBookmark = async () => {
@@ -214,7 +252,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   const saveNotes = async (notesToSave = notes) => {
     if (!user || !subject || !activeMaterial) return;
     try { await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { stickyNotes: notesToSave }); }
-    catch (err) { alert("Failed to save sticky note. Check Firebase rules."); }
+    catch (err) { alert("Failed to save sticky note."); }
   };
   
   const handleDragStart = (e: React.PointerEvent, id: string) => {
@@ -248,7 +286,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
         title: pyqTitle, year: pyqYear, unit: pyqUnit, marks: Number(pyqMarks) || 0, fileUrl, fileType, textContent
       });
       setIsPyqOpen(false); setPyqTitle(''); setPyqYear(''); setPyqMarks(''); setPyqFile(null);
-    } catch (err) { alert("Error saving PYQ. Check Firebase Rules."); } finally { setIsPyqSaving(false); }
+    } catch (err) { alert("Error saving PYQ."); } finally { setIsPyqSaving(false); }
   };
   
   const deletePyq = async (id: string, e: React.MouseEvent) => {
@@ -259,7 +297,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault(); if (!user || !subject || !newTaskTitle.trim()) return;
     try { await addDoc(collection(db, `users/${user.uid}/subjects/${subject.id}/tasks`), { title: newTaskTitle, status: 'todo', priority: newTaskPriority }); setIsTaskModalOpen(false); setNewTaskTitle(''); }
-    catch (err) { alert("Failed to add task. Check Firebase Rules."); }
+    catch (err) { alert("Failed to add task."); }
   };
   
   const moveTask = async (taskId: string, currentStatus: string) => {
@@ -488,6 +526,8 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                 {activeMaterial && (
                   <>
                     <button onClick={toggleBookmark} className={`p-2 rounded ${activeMaterial.isBookmarked ? 'text-yellow-400 bg-white/5' : 'text-gray-400 hover:bg-white/10'}`}><Bookmark size={16} className={activeMaterial.isBookmarked ? "fill-yellow-400" : ""} /></button>
+                    <button onClick={clearAnnotations} className={`p-2 rounded ${activeMaterial.annotations ? 'text-red-400 bg-white/5 hover:bg-red-500/20' : 'text-gray-400 opacity-50'}`} title="Clear All Drawings"><EraserIcon size={16} /></button>
+                    
                     <div className="relative">
                       <div className="flex bg-black/40 rounded-lg border border-white/10 overflow-hidden">
                         <button onClick={() => { setIsAddingNote(!isAddingNote); setIsDrawing(false); }} className={`p-2 ${isAddingNote ? 'bg-yellow-500 text-black' : 'text-gray-400 hover:bg-white/10'}`}><StickyNote size={16} /></button>
@@ -517,7 +557,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                         <button onClick={() => { setDrawMode('eraser'); canvasRef.current?.eraseMode(true); }} className={`p-2 rounded ${drawMode === 'eraser' ? 'bg-white text-black' : 'text-gray-400 hover:bg-white/10'}`}><Eraser size={16} /></button>
                         {drawMode === 'eraser' && <input type="range" min="5" max="50" value={eraserSize} onChange={(e) => setEraserSize(Number(e.target.value))} className="w-16 accent-white cursor-pointer ml-2" />}
                         <button onClick={() => canvasRef.current?.undo()} className="p-2 text-gray-400 hover:bg-white/10 rounded">Undo</button>
-                        <button onClick={() => canvasRef.current?.clearCanvas()} className="p-2 text-red-400 hover:bg-white/10 rounded"><Trash2 size={16} /></button>
                         <button onClick={saveAnnotations} className="flex items-center gap-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded text-sm ml-2"><Save size={14}/> Save</button>
                         <button onClick={() => setIsDrawing(false)} className="px-3 py-1.5 bg-white/10 rounded text-sm hover:bg-white/20 ml-2">Cancel</button>
                       </>
@@ -536,7 +575,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                     {activeMaterial.type === 'image' && <img src={activeMaterial.url} className="max-w-full h-auto rounded object-contain" />}
                     {activeMaterial.type === 'pdf' && (
                       <div className="bg-white rounded shadow-2xl overflow-hidden relative">
-                        
                         <Document 
                           file={activeMaterial.url} 
                           onLoadSuccess={({ numPages }) => setNumPages(numPages)} 
@@ -549,22 +587,20 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                     )}
                     {activeMaterial.type === 'ppt' && (
                       <div className="w-full flex flex-col items-center">
-                         <div className="flex justify-between items-center w-full mb-2">
-                           <p className="text-xs text-gray-400">Use the arrows inside the slide window below to change slides</p>
-                           <a href={activeMaterial.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">Open Original <ExternalLink size={12}/></a>
-                         </div>
                         <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(activeMaterial.url)}`} className="w-[900px] max-w-full h-[75vh] rounded border-none bg-white shadow-2xl" title="PPT" />
                       </div>
                     )}
                     {activeMaterial.type === 'video' && <div className="w-full aspect-video bg-black rounded overflow-hidden shadow-2xl"><ReactPlayer url={activeMaterial.url} controls width="100%" height="100%" /></div>}
                     {activeMaterial.type === 'url' && <iframe src={activeMaterial.url} className="w-[800px] h-[600px] rounded border-none bg-white shadow-2xl" title="Web" />}
 
+                    {/* THE FIX: Always show old annotations behind the canvas */}
+                    {activeMaterial.annotations && <img src={activeMaterial.annotations} className="absolute inset-0 pointer-events-none w-full h-full object-contain z-10" />}
+                    
                     {isDrawing && (
                       <div className="absolute inset-0 z-20 pointer-events-auto">
                         <ReactSketchCanvas ref={canvasRef} strokeWidth={drawMode === 'highlighter' ? 15 : 4} strokeColor={drawMode === 'highlighter' ? 'rgba(255, 230, 0, 0.4)' : drawColor} eraserWidth={eraserSize} canvasColor="transparent" style={{ border: 'none' }} allowOnlyPointerType="all" withTimestamp={true} />
                       </div>
                     )}
-                    {!isDrawing && activeMaterial.annotations && <img src={activeMaterial.annotations} className="absolute inset-0 pointer-events-none w-full h-full object-contain z-10" />}
                     {isAddingNote && <div className="absolute inset-0 z-30 cursor-crosshair bg-black/10 transition-all" onClick={handleOverlayClick}><div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 px-4 py-2 rounded-full text-white text-sm pointer-events-none">Click to place note on Page {currentPage}</div></div>}
                     
                     {visibleNotes.map(note => (
@@ -723,5 +759,3 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     </div>
   );
 }
-
-
