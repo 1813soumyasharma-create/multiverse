@@ -14,13 +14,14 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// Reverted to CDN worker for stability on Vercel
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Using cdnjs which is reliable on Vercel
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
 interface StickyNoteData { id: string; x: number; y: number; text: string; page: number; }
 interface Material {
   id: string; title: string; type: 'pdf' | 'image' | 'video' | 'url' | 'ppt'; url: string; unit: string;
-  annotations?: string; isBookmarked?: boolean; stickyNotes?: StickyNoteData[]; textContent?: string;
+  annotations?: string; // Now stores JSON array of paths
+  isBookmarked?: boolean; stickyNotes?: StickyNoteData[]; textContent?: string;
 }
 interface PYQ {
   id: string; title: string; year: string; unit: string; marks: number; fileUrl?: string; fileType?: string; textContent?: string;
@@ -101,6 +102,25 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
       setEditTitle(subject.title); setEditRole(subject.role); setEditTheme(subject.theme); setEditExamDate(subject.examDate || '');
     }
   }, [activeMaterial?.id, subject]);
+
+  // Load annotation paths into the canvas
+  useEffect(() => {
+    if (canvasRef.current && activeMaterial?.annotations) {
+      try {
+        if (activeMaterial.annotations.startsWith('[')) {
+          const paths = JSON.parse(activeMaterial.annotations);
+          canvasRef.current.loadPaths(paths);
+        } else {
+          // Legacy PNG found, can't load into vector canvas
+          canvasRef.current.clearCanvas();
+        }
+      } catch (e) {
+        console.error("Failed to load paths", e);
+      }
+    } else if (canvasRef.current) {
+      canvasRef.current.clearCanvas();
+    }
+  }, [activeMaterial, isDrawing]);
 
   useEffect(() => {
     if (!user || !subject) return;
@@ -186,36 +206,10 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   const saveAnnotations = async () => {
     if (!canvasRef.current || !user || !subject || !activeMaterial) return;
     try {
-      const newDrawingDataUrl = await canvasRef.current.exportImage("png");
-      let finalDataUrl = newDrawingDataUrl;
-
-      // Merge logic
-      if (activeMaterial.annotations) {
-        finalDataUrl = await new Promise<string>((resolve) => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          const imgOld = new Image();
-          const imgNew = new Image();
-          let count = 0;
-
-          const onload = () => {
-            if (++count === 2) {
-              canvas.width = Math.max(imgOld.width, imgNew.width);
-              canvas.height = Math.max(imgOld.height, imgNew.height);
-              ctx?.drawImage(imgOld, 0, 0, canvas.width, canvas.height);
-              ctx?.drawImage(imgNew, 0, 0, canvas.width, canvas.height);
-              resolve(canvas.toDataURL('image/png'));
-            }
-          };
-          imgOld.onload = onload;
-          imgNew.onload = onload;
-          imgOld.src = activeMaterial.annotations!;
-          imgNew.src = newDrawingDataUrl;
-        });
-      }
-
-      await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { annotations: finalDataUrl });
-      setActiveMaterial({ ...activeMaterial, annotations: finalDataUrl });
+      const paths = await canvasRef.current.exportPaths();
+      const annotationsString = JSON.stringify(paths);
+      await updateDoc(doc(db, `users/${user.uid}/subjects/${subject.id}/materials`, activeMaterial.id), { annotations: annotationsString });
+      setActiveMaterial({ ...activeMaterial, annotations: annotationsString });
       setIsDrawing(false);
     } catch (err) {
       alert("Failed to save drawing.");
@@ -593,13 +587,22 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                     {activeMaterial.type === 'video' && <div className="w-full aspect-video bg-black rounded overflow-hidden shadow-2xl"><ReactPlayer url={activeMaterial.url} controls width="100%" height="100%" /></div>}
                     {activeMaterial.type === 'url' && <iframe src={activeMaterial.url} className="w-[800px] h-[600px] rounded border-none bg-white shadow-2xl" title="Web" />}
 
-                    {activeMaterial.annotations && <img src={activeMaterial.annotations} className="absolute inset-0 pointer-events-none w-full h-full object-contain z-10" />}
-                    
-                    {isDrawing && (
-                      <div className="absolute inset-0 z-20 pointer-events-auto">
-                        <ReactSketchCanvas ref={canvasRef} strokeWidth={drawMode === 'highlighter' ? 15 : 4} strokeColor={drawMode === 'highlighter' ? 'rgba(255, 230, 0, 0.4)' : drawColor} eraserWidth={eraserSize} canvasColor="transparent" style={{ border: 'none' }} allowOnlyPointerType="all" withTimestamp={true} />
+                    {/* Canvas ALWAYS renders if there are annotations or if we are drawing */}
+                    {(activeMaterial.annotations || isDrawing) && (
+                      <div className={`absolute inset-0 z-20 ${isDrawing ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+                        <ReactSketchCanvas 
+                          ref={canvasRef} 
+                          strokeWidth={drawMode === 'highlighter' ? 15 : 4} 
+                          strokeColor={drawMode === 'highlighter' ? 'rgba(255, 230, 0, 0.4)' : drawColor} 
+                          eraserWidth={eraserSize} 
+                          canvasColor="transparent" 
+                          style={{ border: 'none', opacity: isDrawing ? 1 : 0.8 }} 
+                          allowOnlyPointerType="all" 
+                          withTimestamp={true} 
+                        />
                       </div>
                     )}
+
                     {isAddingNote && <div className="absolute inset-0 z-30 cursor-crosshair bg-black/10 transition-all" onClick={handleOverlayClick}><div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 px-4 py-2 rounded-full text-white text-sm pointer-events-none">Click to place note on Page {currentPage}</div></div>}
                     
                     {visibleNotes.map(note => (
