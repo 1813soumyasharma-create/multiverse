@@ -14,7 +14,6 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// Using jsDelivr - the most reliable CDN that won't be blocked
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface StickyNoteData { id: string; x: number; y: number; text: string; page: number; }
@@ -51,7 +50,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   const [drawMode, setDrawMode] = useState<'pen' | 'highlighter' | 'eraser'>('pen');
   const [eraserSize, setEraserSize] = useState(20);
   
-  // Default to 0 to prevent undefined errors
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfWidth, setPdfWidth] = useState(800); 
@@ -103,7 +101,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     }
   }, [activeMaterial?.id, subject]);
 
-  // Load annotation paths into the canvas
   useEffect(() => {
     if (canvasRef.current && activeMaterial?.annotations) {
       try {
@@ -627,11 +624,12 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
               )}
             </div>
 
-            {activeMaterial?.type === 'pdf' && numPages > 0 && (
+            {/* ALWAYS visible if it's a PDF, regardless of numPages loading */}
+            {activeMaterial?.type === 'pdf' && (
               <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-[#1e1e24] px-6 py-3 rounded-2xl border border-white/20 shadow-2xl z-[100]">
                 <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} className="p-2 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronLeft size={20}/></button>
-                <span className="text-sm font-bold text-white tracking-wider min-w-[80px] text-center">Page {currentPage} / {numPages}</span>
-                <button onClick={() => setCurrentPage(p => Math.min(numPages, p + 1))} disabled={currentPage >= numPages} className="p-2 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronRight size={20}/></button>
+                <span className="text-sm font-bold text-white tracking-wider min-w-[80px] text-center">Page {currentPage} {numPages > 0 ? `/ ${numPages}` : ''}</span>
+                <button onClick={() => setCurrentPage(p => p + 1)} disabled={numPages > 0 && currentPage >= numPages} className="p-2 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronRight size={20}/></button>
               </div>
             )}
           </>
