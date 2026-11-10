@@ -506,7 +506,16 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
             <div className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-panel/80 backdrop-blur-md z-30 shrink-0">
               <div className="flex items-center gap-2 overflow-hidden mr-4">
                 {activeMaterial && <button onClick={() => setActiveMaterial(null)} className="p-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg shrink-0"><X size={18} /></button>}
-                <div className="text-sm font-medium text-white truncate max-w-[200px]">{activeMaterial ? activeMaterial.title : 'No document open'}</div>
+                <div className="text-sm font-medium text-white truncate max-w-[150px]">{activeMaterial ? activeMaterial.title : 'No document open'}</div>
+                
+                {/* PAGINATION MOVED TO TOP BAR */}
+                {activeMaterial?.type === 'pdf' && (
+                  <div className="flex items-center gap-1 bg-black/40 rounded-lg px-2 py-1 ml-2 border border-white/10 shrink-0">
+                    <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} className="p-1 disabled:opacity-30 hover:bg-white/10 rounded text-white"><ChevronLeft size={16}/></button>
+                    <span className="text-xs text-gray-300 min-w-[60px] text-center">Page {currentPage} {numPages > 0 ? `/ ${numPages}` : ''}</span>
+                    <button onClick={() => setCurrentPage(p => p + 1)} disabled={numPages > 0 && currentPage >= numPages} className="p-1 disabled:opacity-30 hover:bg-white/10 rounded text-white"><ChevronRight size={16}/></button>
+                  </div>
+                )}
               </div>
               
               <div className="flex items-center gap-2 shrink-0">
@@ -624,7 +633,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
               )}
             </div>
 
-            {/* ALWAYS visible if it's a PDF, regardless of numPages loading */}
+            {/* Bottom Pagination (Backup) */}
             {activeMaterial?.type === 'pdf' && (
               <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-[#1e1e24] px-6 py-3 rounded-2xl border border-white/20 shadow-2xl z-[100]">
                 <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} className="p-2 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronLeft size={20}/></button>
