@@ -1,12 +1,14 @@
 ﻿import { pdfjs } from 'react-pdf';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-// Ensure the worker is set (matches your SubjectWorkspace setup)
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Bundle the worker locally so Vercel doesn't block it
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 export async function extractTextFromPdf(file: File): Promise<string> {
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = pdfjs.getDocument(arrayBuffer);
+    // THE FIX: We must pass an object { data: arrayBuffer }
+    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
     let fullText = '';
     
