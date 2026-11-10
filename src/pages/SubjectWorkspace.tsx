@@ -13,8 +13,9 @@ import type { Subject } from './Dashboard';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
+
+// Reverted to CDN worker for production stability
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface StickyNoteData { id: string; x: number; y: number; text: string; page: number; }
 interface Material {

@@ -1,8 +1,7 @@
 ﻿import { pdfjs } from 'react-pdf';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-// Bundle the worker locally so Vercel doesn't block it
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
+// Reverted to CDN - this works perfectly on Vercel
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 export async function extractTextFromPdf(file: File): Promise<string> {
   try {
