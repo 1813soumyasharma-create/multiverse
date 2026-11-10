@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
-import { Send, FileText, Bot, X, ArrowLeft, Upload, Link as LinkIcon, Menu, PenTool, Highlighter, Eraser, Save, Trash2, PlayCircle, FileImage, AlertCircle, Bookmark, StickyNote, GripHorizontal, ChevronLeft, ChevronRight, ChevronDown, Eye, EyeOff, PieChart as PieIcon, Edit2, HelpCircle, Plus, ExternalLink, Sparkles, TrendingUp, CheckCircle2, AlertTriangle, Settings, CheckSquare, ArrowRight, Eraser as EraserIcon } from 'lucide-react';
+import { Send, FileText, Bot, X, ArrowLeft, Upload, Link as LinkIcon, Menu, PenTool, Highlighter, Eraser, Save, Trash2, PlayCircle, FileImage, AlertCircle, Bookmark, StickyNote, GripHorizontal, ChevronLeft, ChevronRight, ChevronDown, Eye, EyeOff, PieChart as PieIcon, Edit2, HelpCircle, Plus, ExternalLink, Sparkles, TrendingUp, CheckCircle2, AlertTriangle, Settings, CheckSquare, ArrowRight, Eraser as EraserIcon, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { supabase } from '../lib/supabase';
@@ -34,6 +34,8 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   const { user } = useAuth();
   
   const [activeView, setActiveView] = useState<'documents' | 'pyqs' | 'analytics' | 'tasks'>('documents');
+  
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
   const [materials, setMaterials] = useState<Material[]>([]);
   const [pyqs, setPyqs] = useState<PYQ[]>([]);
@@ -94,6 +96,11 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   const canvasRef = useRef<ReactSketchCanvasRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Auto-open sidebar if user closes the active document
+  useEffect(() => {
+    if (!activeMaterial) setIsSidebarOpen(true);
+  }, [activeMaterial]);
+
   useEffect(() => {
     setCurrentPage(1); setNumPages(0); setActiveNoteId(null);
     if (subject) {
@@ -107,12 +114,10 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
       try {
         const parsed = JSON.parse(activeMaterial.annotations);
         
-        // Handle legacy array format by moving it to page 1
         if (Array.isArray(parsed)) {
            if (currentPage === 1) canvasRef.current.loadPaths(parsed);
            else canvasRef.current.clearCanvas();
         } 
-        // Handle new object format { "1": [...], "2": [...] }
         else if (typeof parsed === 'object' && parsed !== null) {
            const pagePaths = parsed[currentPage.toString()];
            if (pagePaths) {
@@ -160,7 +165,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     const handleResize = () => { if (containerRef.current) setPdfWidth(containerRef.current.clientWidth - 40); };
     window.addEventListener('resize', handleResize); handleResize();
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [isSidebarOpen]); // Recalculate width if sidebar is toggled
 
   const saveKey = (key: string) => { const cleanKey = key.trim(); setApiKey(cleanKey); localStorage.setItem('gemini-key', cleanKey); setIsSettingsOpen(false); };
   
@@ -213,7 +218,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     e.stopPropagation(); setEditingMaterialId(mat.id); setUploadTitle(mat.title); setUploadUnit(mat.unit); setUploadError(''); setIsUploadOpen(true);
   };
   
-  // Save annotations mapped by page
   const saveAnnotations = async () => {
     if (!canvasRef.current || !user || !subject || !activeMaterial) return;
     try {
@@ -226,12 +230,11 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
           if (!Array.isArray(parsed) && typeof parsed === 'object') {
              existingAnnotations = parsed;
           } else if (Array.isArray(parsed)) {
-             existingAnnotations = { "1": parsed }; // Migrate legacy array
+             existingAnnotations = { "1": parsed }; 
           }
         } catch (e) {}
       }
 
-      // Save current page paths into the object
       existingAnnotations[currentPage.toString()] = paths;
       const annotationsString = JSON.stringify(existingAnnotations);
 
@@ -393,7 +396,8 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   return (
     <div className="flex h-full w-full bg-black/20 relative overflow-hidden" onPointerMove={handleDragMove} onPointerUp={handleDragEnd}>
       
-      <div className="w-72 border-r border-white/10 flex flex-col bg-panel/30 shrink-0 transition-all z-20">
+      {/* SIDEBAR WITH DYNAMIC WIDTH */}
+      <div className={`border-white/10 flex-col bg-panel/30 shrink-0 transition-all duration-300 z-20 ${isSidebarOpen ? 'flex w-72 border-r' : 'hidden w-0'}`}>
         <div className="p-4 border-b border-white/10 flex items-center justify-between">
           <button onClick={onBack} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white"><ArrowLeft size={16} /> Back</button>
           <div className="flex items-center gap-1">
@@ -438,7 +442,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-w-0 bg-[#1a1a1f] relative">
+      <div className="flex-1 flex flex-col min-w-0 bg-[#1a1a1f] relative transition-all duration-300">
         
         {activeView === 'analytics' && (
           <div className="p-8 h-full overflow-y-auto">
@@ -536,6 +540,11 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
           <>
             <div className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-panel/80 backdrop-blur-md z-30 shrink-0">
               <div className="flex items-center gap-2 overflow-hidden mr-4">
+                {/* SIDEBAR TOGGLE BUTTON */}
+                <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1.5 bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg shrink-0 mr-1" title="Toggle Sidebar">
+                  {isSidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+                </button>
+                
                 {activeMaterial && <button onClick={() => setActiveMaterial(null)} className="p-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg shrink-0"><X size={18} /></button>}
                 <div className="text-sm font-medium text-white truncate max-w-[150px]">{activeMaterial ? activeMaterial.title : 'No document open'}</div>
                 
@@ -600,7 +609,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
 
             <div className="flex-1 overflow-auto p-8 flex justify-center relative pb-24" onClick={() => setIsNotesMenuOpen(false)}>
               {activeMaterial ? (
-                <div className="relative w-full max-w-4xl flex justify-center" ref={containerRef} onClick={(e) => e.stopPropagation()}>
+                <div className="relative w-full max-w-5xl flex justify-center" ref={containerRef} onClick={(e) => e.stopPropagation()}>
                   <div className="relative">
                     {activeMaterial.type === 'image' && <img src={activeMaterial.url} className="max-w-full h-auto rounded object-contain" />}
                     {activeMaterial.type === 'pdf' && (
@@ -623,7 +632,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
                     {activeMaterial.type === 'video' && <div className="w-full aspect-video bg-black rounded overflow-hidden shadow-2xl"><ReactPlayer url={activeMaterial.url} controls width="100%" height="100%" /></div>}
                     {activeMaterial.type === 'url' && <iframe src={activeMaterial.url} className="w-[800px] h-[600px] rounded border-none bg-white shadow-2xl" title="Web" />}
 
-                    {/* Canvas ALWAYS renders if there are annotations or if we are drawing */}
                     {(activeMaterial.annotations || isDrawing) && (
                       <div className={`absolute inset-0 z-20 ${isDrawing ? 'pointer-events-auto' : 'pointer-events-none'}`}>
                         <ReactSketchCanvas 
@@ -664,7 +672,6 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
               )}
             </div>
 
-            {/* Bottom Pagination (Backup) */}
             {activeMaterial?.type === 'pdf' && (
               <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-[#1e1e24] px-6 py-3 rounded-2xl border border-white/20 shadow-2xl z-[100]">
                 <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} className="p-2 disabled:opacity-30 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronLeft size={20}/></button>
