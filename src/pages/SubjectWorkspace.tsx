@@ -55,7 +55,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfWidth, setPdfWidth] = useState(800); 
-  const [pdfDimensions, setPdfDimensions] = useState({ width: 0, height: 0 }); // FIX: Exact dimensions for canvas
+  const [pdfDimensions, setPdfDimensions] = useState({ width: 0, height: 0 });
   
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [notes, setNotes] = useState<StickyNoteData[]>([]);
@@ -101,12 +101,13 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
     if (!activeMaterial) setIsSidebarOpen(true);
   }, [activeMaterial]);
 
+  // FIX: Removed setCurrentPage(1) from this useEffect so it doesn't reset on annotation save
   useEffect(() => {
-    setCurrentPage(1); setNumPages(0); setActiveNoteId(null);
+    setNumPages(0); setActiveNoteId(null);
     if (subject) {
       setEditTitle(subject.title); setEditRole(subject.role); setEditTheme(subject.theme); setEditExamDate(subject.examDate || '');
     }
-  }, [activeMaterial?.id, subject]);
+  }, [subject]);
 
   useEffect(() => {
     if (canvasRef.current && activeMaterial?.annotations) {
@@ -415,7 +416,7 @@ export default function SubjectWorkspace({ subject, onBack }: WorkspaceProps) {
         
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
           {activeView === 'documents' && materials.map(mat => (
-            <div key={mat.id} onClick={() => { setActiveMaterial(mat); setIsDrawing(false); setIsAddingNote(false); }}
+            <div key={mat.id} onClick={() => { setActiveMaterial(mat); setCurrentPage(1); setIsDrawing(false); setIsAddingNote(false); }}
               className={`group w-full flex items-center justify-between p-2 rounded-lg text-sm text-left cursor-pointer transition-all ${activeMaterial?.id === mat.id ? 'bg-primary/20 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
               <div className="flex items-center gap-2 truncate flex-1">
                 {mat.type === 'pdf' || mat.type === 'ppt' ? <FileText size={16} /> : mat.type === 'video' ? <PlayCircle size={16} /> : <FileImage size={16} />}
